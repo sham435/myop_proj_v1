@@ -1,4 +1,5 @@
 import { Sidebar } from "../../components/sidebar"
+import { RoleToggle } from "../../components/role-toggle"
 
 export default function Dashboard() {
   return (
@@ -30,8 +31,11 @@ export default function Dashboard() {
             </div>
           </div>
         </section>
+        <section className="rounded-lg border border-border bg-card p-4">
+          <h2 className="mb-2 text-lg font-medium">Role</h2>
+          <RoleToggle />
+        </section>
       </div>
     </div>
   )
 }
-
