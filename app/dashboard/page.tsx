@@ -1,14 +1,18 @@
 import { Sidebar } from "../../components/sidebar"
 import { RoleToggle } from "../../components/role-toggle"
+import { currentUser } from "../../lib/server/user"
 
-export default function Dashboard() {
+export default async function Dashboard() {
+  const user = await currentUser()
   return (
     <div className="mx-auto max-w-6xl gap-6 p-4 lg:flex">
       <Sidebar />
       <div className="flex-1 space-y-6">
         <section className="rounded-lg border border-border bg-card p-4">
           <h2 className="mb-2 text-lg font-medium">Overview</h2>
-          <p className="text-sm text-fg-muted">Welcome to your dashboard.</p>
+          <p className="text-sm text-fg-muted">
+            Welcome{(user as any)?.name ? `, ${(user as any).name}` : (user as any)?.email ? `, ${(user as any).email}` : ""}.
+          </p>
         </section>
         <section id="activity" className="rounded-lg border border-border bg-card p-4">
           <h2 className="mb-2 text-lg font-medium">Recent Activity</h2>

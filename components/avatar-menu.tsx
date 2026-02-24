@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useUser } from '../lib/useUser'
 
@@ -7,6 +7,8 @@ export function AvatarMenu() {
   const { user, logout } = useUser()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const typeaheadRef = useRef<{ keys: string; t?: number }>({ keys: '' })
   useEffect(() => {
     function onDoc(e: MouseEvent) {
       if (!ref.current) return
@@ -27,41 +29,62 @@ export function AvatarMenu() {
       e.preventDefault()
       setOpen(true)
       requestAnimationFrame(() => {
-        const first = ref.current?.querySelector<HTMLElement>('[data-menuitem]')
-        first?.focus()
+        const first = ref.current?.querySelector('[data-menuitem]') as HTMLElement | null
+        first && first.focus()
       })
     }
   }
   function onMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    const items = Array.from(ref.current?.querySelectorAll<HTMLElement>('[data-menuitem]') ?? [])
+    const items = Array.from(ref.current?.querySelectorAll('[data-menuitem]') ?? []) as HTMLElement[]
     const idx = items.findIndex((el) => el === document.activeElement)
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      const next = e.shiftKey ? items[(idx - 1 + items.length) % items.length] : items[(idx + 1) % items.length]
+      next && next.focus()
+      return
+    }
     if (e.key === 'Escape') {
       setOpen(false)
-      (ref.current?.querySelector('button[aria-haspopup="menu"]') as HTMLButtonElement | null)?.focus()
+      const trig = triggerRef.current
+      trig && trig.focus()
       return
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       const next = items[(idx + 1) % items.length]
-      next?.focus()
+      next && next.focus()
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault()
       const prev = items[(idx - 1 + items.length) % items.length]
-      prev?.focus()
+      prev && prev.focus()
     }
     if (e.key === 'Home') {
       e.preventDefault()
-      items[0]?.focus()
+      items[0] && items[0].focus()
     }
     if (e.key === 'End') {
       e.preventDefault()
-      items[items.length - 1]?.focus()
+      items[items.length - 1] && items[items.length - 1].focus()
+    }
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const ta = typeaheadRef.current
+      ta.keys += e.key.toLowerCase()
+      clearTimeout(ta.t)
+      ta.t = window.setTimeout(() => {
+        ta.keys = ''
+      }, 500)
+      const match = items.find((el) => (el.textContent ?? '').trim().toLowerCase().startsWith(ta.keys))
+      if (match) {
+        e.preventDefault()
+        match.focus()
+      }
     }
   }
   return (
     <div className="relative" ref={ref}>
       <button
+        ref={triggerRef}
         type="button"
         className="flex h-8 w-8 items-center justify-center rounded-full bg-fg text-bg"
         onClick={() => setOpen((v) => !v)}
