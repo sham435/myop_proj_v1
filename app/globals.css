@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+:root {
+  --bg: hsl(240 10% 6%);
+  --fg: hsl(0 0% 98%);
+  --fg-muted: hsl(0 0% 76%);
+  --card: hsl(240 6% 10%);
+  --border: hsl(240 5% 18%);
+}
+
+.bg-bg { background-color: var(--bg); }
+.text-fg { color: var(--fg); }
+.text-fg-muted { color: var(--fg-muted); }
+.bg-card { background-color: var(--card); }
+.border-border { border-color: var(--border); }
+.min-h-dvh { min-height: 100dvh; }
+
+* { box-sizing: border-box; }
+html, body { padding: 0; margin: 0; }
+
