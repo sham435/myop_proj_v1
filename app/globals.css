@@ -18,3 +18,11 @@
 * { box-sizing: border-box; }
 html, body { padding: 0; margin: 0; }
 
+@keyframes menu-pop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.menu-pop {
+  animation: menu-pop 120ms ease-out;
+  will-change: opacity, transform;
+}
