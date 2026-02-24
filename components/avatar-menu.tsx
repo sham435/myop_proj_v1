@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useUser } from '../lib/useUser'
+import Avatar from './avatar'
 
 export function AvatarMenu() {
   const { user, logout } = useUser()
@@ -86,14 +87,14 @@ export function AvatarMenu() {
       <button
         ref={triggerRef}
         type="button"
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-fg text-bg"
+        className="flex h-8 w-8 items-center justify-center rounded-full"
         onClick={() => setOpen((v) => !v)}
         onKeyDown={onBtnKeyDown}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-controls="user-menu"
       >
-        {letter}
+        <Avatar src={(user as any)?.avatar} name={(user as any)?.name ?? (user as any)?.email ?? letter} size={32} />
       </button>
       {open && (
         <div

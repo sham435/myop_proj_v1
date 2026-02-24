@@ -1,6 +1,19 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-playfair), ui-serif, Georgia, serif;
+}
+
 :root {
+  --bg: hsl(0 0% 100%);
+  --fg: hsl(240 10% 3.9%);
+  --fg-muted: hsl(240 6% 40%);
+  --card: hsl(0 0% 100%);
+  --border: hsl(240 5% 84%);
+}
+
+.dark {
   --bg: hsl(240 10% 6%);
   --fg: hsl(0 0% 98%);
   --fg-muted: hsl(0 0% 76%);

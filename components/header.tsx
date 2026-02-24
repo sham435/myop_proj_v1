@@ -2,6 +2,7 @@
 import Link from "next/link"
 import { useUser } from "../lib/useUser"
 import { AvatarMenu } from "./avatar-menu"
+import ThemeToggle from "./theme-toggle"
 
 export function Header() {
   const { user } = useUser()
@@ -11,9 +12,10 @@ export function Header() {
         <Link href="/" className="text-lg font-semibold">
           MyApp
         </Link>
-        <nav className="flex items-center gap-4 text-sm">
+        <nav className="flex items-center gap-3 text-sm">
           <Link href="/dashboard" className="text-fg hover:underline">Dashboard</Link>
           {user?.role === "admin" && <Link href="/dashboard/admin" className="text-fg hover:underline">Admin</Link>}
+          <ThemeToggle />
           <AvatarMenu />
         </nav>
       </div>
