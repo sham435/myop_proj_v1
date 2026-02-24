@@ -3,7 +3,10 @@ import { NextResponse } from "next/server"
 
 const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"
 
-export async function GET() {
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({}))
+  const name = body?.name
+  if (typeof name !== "string") return NextResponse.json({ ok: false }, { status: 400 })
   const jar = await cookies()
   const token = jar.get("token")?.value
   if (!token) return NextResponse.json({ ok: false }, { status: 401 })
@@ -12,9 +15,15 @@ export async function GET() {
     cache: "no-store"
   }).catch(() => null)
   if (!res || !res.ok) return NextResponse.json({ ok: false }, { status: 401 })
-  const data = await res.json().catch(() => ({}))
-  const role = jar.get("role")?.value
-  const name = jar.get("name")?.value
-  const out = typeof data === "object" && data ? { ...data, role: role ?? (data as any).role, name: name ?? (data as any).name } : data
-  return NextResponse.json(out)
+  jar.set({
+    name: "name",
+    value: name,
+    httpOnly: true,
+    sameSite: "lax",
+    secure: true,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7
+  })
+  return NextResponse.json({ ok: true })
 }
+
