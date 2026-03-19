@@ -24,7 +24,12 @@ export class SkillsService {
       const skillDirs = [
         path.join(os.homedir(), ".claude", "skills"),
         path.join(os.homedir(), ".agents", "skills"),
+        // packages/api/.opencode/skill (from cwd)
         path.join(process.cwd(), ".opencode", "skill"),
+        // Repo root .opencode/skill (two levels up from packages/api)
+        path.join(process.cwd(), "..", "..", ".opencode", "skill"),
+        // Built-in skills from myoc package
+        path.join(process.cwd(), "..", "..", "packages", "myoc", "src", "builtin-skills"),
       ]
 
       const skills: Array<{ name: string; description: string; location: string }> = []

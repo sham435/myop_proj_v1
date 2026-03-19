@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenCode Agent GUI</title>
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <style>
       * {
         box-sizing: border-box;
@@ -60,6 +59,11 @@
         margin-bottom: 8px;
       }
 
+      .sidebar-header .version {
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
       .session-controls {
         display: flex;
         gap: 8px;
@@ -96,10 +100,6 @@
 
       .skill-item:hover {
         background-color: var(--border);
-      }
-
-      .skill-item.active {
-        border: 1px solid var(--accent);
       }
 
       .skill-item h3 {
@@ -351,6 +351,29 @@
       .empty-state p {
         margin-bottom: 24px;
       }
+
+      .connection-settings {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+
+      .connection-settings label {
+        display: block;
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-bottom: 4px;
+      }
+
+      .connection-settings input {
+        width: 100%;
+        padding: 8px;
+        background-color: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        color: var(--text-primary);
+        font-size: 13px;
+      }
     </style>
   </head>
   <body>
@@ -358,9 +381,14 @@
       <div class="sidebar">
         <div class="sidebar-header">
           <h1>OpenCode Agent</h1>
+          <div class="version">GUI v1.0</div>
           <div class="session-controls">
             <button id="startBtn">Start Session</button>
             <button id="endBtn" class="secondary" disabled>End</button>
+          </div>
+          <div class="connection-settings">
+            <label for="apiUrl">API Server URL:</label>
+            <input type="text" id="apiUrl" value="http://localhost:3000" placeholder="http://localhost:3000" />
           </div>
         </div>
         <div class="sidebar-content">
@@ -400,237 +428,265 @@
       </div>
     </div>
 
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <script>
-      const WS_URL = import.meta.env?.VITE_WS_URL || 'http://localhost:3000';
+      const API_URL_DEFAULT = "http://localhost:3000"
 
-      let socket = null;
-      let currentSessionId = null;
-      let isConnected = false;
+      let socket = null
+      let currentSessionId = null
+      let isConnected = false
 
       const elements = {
-        startBtn: document.getElementById('startBtn'),
-        startBtnEmpty: document.getElementById('startBtnEmpty'),
-        endBtn: document.getElementById('endBtn'),
-        interruptBtn: document.getElementById('interruptBtn'),
-        sendBtn: document.getElementById('sendBtn'),
-        messageInput: document.getElementById('messageInput'),
-        messages: document.getElementById('messages'),
-        skillsList: document.getElementById('skillsList'),
-        statusText: document.getElementById('statusText'),
-        statusDot: document.getElementById('statusDot'),
-      };
-
-      function updateConnectionStatus(connected) {
-        isConnected = connected;
-        elements.statusText.textContent = connected ? 'Connected' : 'Disconnected';
-        elements.statusDot.className = `status-dot ${connected ? 'connected' : 'disconnected'}`;
-        elements.startBtn.disabled = connected;
-        elements.startBtnEmpty.disabled = connected;
-        elements.endBtn.disabled = !connected;
-        elements.sendBtn.disabled = !connected || !currentSessionId;
-        elements.interruptBtn.disabled = !currentSessionId;
-        elements.messageInput.disabled = !currentSessionId;
+        startBtn: document.getElementById("startBtn"),
+        startBtnEmpty: document.getElementById("startBtnEmpty"),
+        endBtn: document.getElementById("endBtn"),
+        interruptBtn: document.getElementById("interruptBtn"),
+        sendBtn: document.getElementById("sendBtn"),
+        messageInput: document.getElementById("messageInput"),
+        messages: document.getElementById("messages"),
+        skillsList: document.getElementById("skillsList"),
+        statusText: document.getElementById("statusText"),
+        statusDot: document.getElementById("statusDot"),
+        apiUrl: document.getElementById("apiUrl"),
       }
 
-      function addMessage(content, type = 'agent', sender = null) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${type}`;
+      function getApiUrl() {
+        return elements.apiUrl.value.trim() || API_URL_DEFAULT
+      }
 
-        if (type === 'system') {
-          messageDiv.textContent = content;
+      function updateConnectionStatus(connected) {
+        isConnected = connected
+        elements.statusText.textContent = connected ? "Connected" : "Disconnected"
+        elements.statusDot.className = `status-dot ${connected ? "connected" : "disconnected"}`
+        elements.startBtn.disabled = connected
+        elements.startBtnEmpty.disabled = connected
+        elements.endBtn.disabled = !connected
+        elements.sendBtn.disabled = !connected || !currentSessionId
+        elements.interruptBtn.disabled = !currentSessionId
+        elements.messageInput.disabled = !currentSessionId
+        elements.apiUrl.disabled = connected
+      }
+
+      function addMessage(content, type = "agent", sender = null) {
+        const messageDiv = document.createElement("div")
+        messageDiv.className = `message ${type}`
+
+        if (type === "system") {
+          messageDiv.textContent = content
         } else {
           if (sender) {
-            const senderDiv = document.createElement('div');
-            senderDiv.className = 'sender';
-            senderDiv.textContent = sender;
-            messageDiv.appendChild(senderDiv);
+            const senderDiv = document.createElement("div")
+            senderDiv.className = "sender"
+            senderDiv.textContent = sender
+            messageDiv.appendChild(senderDiv)
           }
-          messageDiv.innerHTML += formatMarkdown(content);
+          messageDiv.innerHTML += formatMarkdown(content)
         }
 
-        elements.messages.appendChild(messageDiv);
-        elements.messages.scrollTop = elements.messages.scrollHeight;
+        elements.messages.appendChild(messageDiv)
+        elements.messages.scrollTop = elements.messages.scrollHeight
       }
 
       function formatMarkdown(text) {
         let html = text
-          .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-          .replace(/`([^`]+)`/g, '<code>$1</code>')
-          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-          .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-          .replace(/\n/g, '<br>');
-        return html;
+          .replace(/```(\w*)\n([\s\S]*?)```/g, "<pre><code>$2</code></pre>")
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+          .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+          .replace(/\n/g, "<br>")
+        return html
       }
 
       function showEmptyState(show) {
-        const emptyState = elements.messages.querySelector('.empty-state');
-        if (show && !emptyState) {
+        if (show) {
           elements.messages.innerHTML = `
-            <div class="empty-state">
-              <h2>Welcome to OpenCode Agent</h2>
-              <p>Start a session to begin chatting with the AI agent.</p>
-              <button id="startBtnEmpty2">Start Session</button>
-            </div>
-          `;
-          document.getElementById('startBtnEmpty2').addEventListener('click', startSession);
-        } else if (!show && emptyState) {
-          elements.messages.innerHTML = '';
+          <div class="empty-state">
+            <h2>Welcome to OpenCode Agent</h2>
+            <p>Start a session to begin chatting with the AI agent.</p>
+            <button id="startBtnEmpty2">Start Session</button>
+          </div>
+        `
+          document.getElementById("startBtnEmpty2").addEventListener("click", startSession)
+        } else {
+          elements.messages.innerHTML = ""
         }
       }
 
       function startSession() {
         if (socket) {
-          socket.disconnect();
+          socket.disconnect()
         }
 
-        socket = io(WS_URL, {
-          path: '/agent/socket.io',
-          transports: ['websocket', 'polling'],
-        });
+        const apiUrl = getApiUrl()
+        console.log("Connecting to:", apiUrl)
 
-        socket.on('connect', () => {
-          console.log('Connected to WebSocket');
-          updateConnectionStatus(true);
-          addMessage('Connecting to agent...', 'system');
+        try {
+          socket = io(apiUrl, {
+            path: "/agent/socket.io",
+            transports: ["websocket", "polling"],
+            timeout: 10000,
+            reconnection: true,
+            reconnectionAttempts: 3,
+          })
 
-          socket.emit('start_session', {}, (response) => {
-            console.log('Session response:', response);
-            if (response.status === 'started') {
-              currentSessionId = response.sessionId;
-              showEmptyState(false);
-              addMessage('Session started. Type a message to begin.', 'system');
-              elements.messageInput.disabled = false;
-              elements.sendBtn.disabled = false;
-              elements.messageInput.focus();
+          socket.on("connect", () => {
+            console.log("Connected to WebSocket")
+            updateConnectionStatus(true)
+            addMessage("Connecting to agent...", "system")
+
+            socket.emit("start_session", {}, (response) => {
+              console.log("Session response:", response)
+              if (response.status === "started") {
+                currentSessionId = response.sessionId
+                showEmptyState(false)
+                addMessage("Session started. Type a message to begin.", "system")
+                elements.messageInput.disabled = false
+                elements.sendBtn.disabled = false
+                elements.messageInput.focus()
+              } else {
+                addMessage("Failed to start session: " + (response.message || "Unknown error"), "system")
+              }
+            })
+          })
+
+          socket.on("output", (data) => {
+            if (data.type === "stdout") {
+              addMessage(data.data, "agent")
             } else {
-              addMessage('Failed to start session: ' + (response.message || 'Unknown error'), 'system');
+              addMessage("[Error] " + data.data, "system")
             }
-          });
-        });
+          })
 
-        socket.on('output', (data) => {
-          if (data.type === 'stdout') {
-            addMessage(data.data, 'agent');
-          } else {
-            addMessage('[Error] ' + data.data, 'system');
-          }
-        });
+          socket.on("session_ended", (data) => {
+            addMessage(`Session ended with code: ${data.exitCode}`, "system")
+            currentSessionId = null
+            updateConnectionStatus(false)
+          })
 
-        socket.on('session_ended', (data) => {
-          addMessage(`Session ended with code: ${data.exitCode}`, 'system');
-          currentSessionId = null;
-          updateConnectionStatus(false);
-        });
+          socket.on("error", (data) => {
+            addMessage("Error: " + data.error, "system")
+          })
 
-        socket.on('error', (data) => {
-          addMessage('Error: ' + data.error, 'system');
-        });
+          socket.on("disconnect", () => {
+            console.log("Disconnected from WebSocket")
+            updateConnectionStatus(false)
+            if (currentSessionId) {
+              addMessage("Disconnected from server", "system")
+            }
+          })
 
-        socket.on('disconnect', () => {
-          console.log('Disconnected from WebSocket');
-          updateConnectionStatus(false);
-          if (currentSessionId) {
-            addMessage('Disconnected from server', 'system');
-          }
-        });
+          socket.on("connect_error", (error) => {
+            console.error("Connection error:", error)
+            addMessage("Failed to connect to server: " + error.message, "system")
+          })
+        } catch (error) {
+          console.error("Socket creation error:", error)
+          addMessage("Failed to create connection: " + error.message, "system")
+        }
       }
 
       function endSession() {
         if (socket && currentSessionId) {
-          socket.emit('end_session', { sessionId: currentSessionId }, (response) => {
-            console.log('End session response:', response);
-          });
-          currentSessionId = null;
+          socket.emit("end_session", { sessionId: currentSessionId }, (response) => {
+            console.log("End session response:", response)
+          })
+          currentSessionId = null
         }
       }
 
       function sendMessage() {
-        const message = elements.messageInput.value.trim();
-        if (!message || !socket || !currentSessionId) return;
+        const message = elements.messageInput.value.trim()
+        if (!message || !socket || !currentSessionId) return
 
-        addMessage(message, 'user', 'You');
-        elements.messageInput.value = '';
+        addMessage(message, "user", "You")
+        elements.messageInput.value = ""
 
-        socket.emit('send_message', { sessionId: currentSessionId, message }, (response) => {
-          if (response.status !== 'sent') {
-            addMessage('Failed to send message: ' + (response.message || 'Unknown error'), 'system');
+        socket.emit("send_message", { sessionId: currentSessionId, message }, (response) => {
+          if (response.status !== "sent") {
+            addMessage("Failed to send message: " + (response.message || "Unknown error"), "system")
           }
-        });
+        })
       }
 
       function interruptSession() {
         if (socket && currentSessionId) {
-          socket.emit('interrupt', { sessionId: currentSessionId }, (response) => {
-            console.log('Interrupt response:', response);
-          });
+          socket.emit("interrupt", { sessionId: currentSessionId }, (response) => {
+            console.log("Interrupt response:", response)
+          })
         }
       }
 
       function loadSkills() {
-        if (socket) {
-          socket.emit('get_skills', {}, (response) => {
-            if (response.status === 'success' && response.skills) {
-              renderSkills(response.skills);
+        const apiUrl = getApiUrl()
+
+        fetch(`${apiUrl}/api/skills`)
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+            return res.json()
+          })
+          .then((data) => {
+            if (data.skills) {
+              renderSkills(data.skills)
+            } else {
+              renderSkills([])
             }
-          });
-        } else {
-          fetch(`${WS_URL}/api/skills`)
-            .then(res => res.json())
-            .then(data => {
-              if (data.skills) {
-                renderSkills(data.skills);
-              } else {
-                renderSkills([]);
-              }
-            })
-            .catch(() => {
-              renderSkills([]);
-            });
-        }
+          })
+          .catch((error) => {
+            console.error("Failed to load skills:", error)
+            renderSkills([])
+            addMessage("Note: Could not load skills from API. Make sure the API server is running.", "system")
+          })
       }
 
       function renderSkills(skills) {
         if (!skills || skills.length === 0) {
-          elements.skillsList.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px;">No skills available</p>';
-          return;
+          elements.skillsList.innerHTML =
+            '<p style="color: var(--text-secondary); font-size: 13px;">No skills available</p>'
+          return
         }
 
-        elements.skillsList.innerHTML = skills.map(skill => `
-          <div class="skill-item" data-skill="${skill.name}">
-            <h3>/${skill.name}</h3>
-            <p>${skill.description || 'No description'}</p>
-          </div>
-        `).join('');
+        elements.skillsList.innerHTML = skills
+          .map(
+            (skill) => `
+        <div class="skill-item" data-skill="${skill.name}">
+          <h3>/${skill.name}</h3>
+          <p>${skill.description || "No description"}</p>
+        </div>
+      `,
+          )
+          .join("")
 
-        elements.skillsList.querySelectorAll('.skill-item').forEach(item => {
-          item.addEventListener('click', () => {
-            const skillName = item.dataset.skill;
-            elements.messageInput.value = `/${skillName}`;
-            elements.messageInput.focus();
-          });
-        });
+        elements.skillsList.querySelectorAll(".skill-item").forEach((item) => {
+          item.addEventListener("click", () => {
+            const skillName = item.dataset.skill
+            elements.messageInput.value = `/${skillName}`
+            elements.messageInput.focus()
+          })
+        })
       }
 
-      elements.startBtn.addEventListener('click', startSession);
-      elements.startBtnEmpty?.addEventListener('click', startSession);
-      elements.endBtn.addEventListener('click', endSession);
-      elements.sendBtn.addEventListener('click', sendMessage);
-      elements.interruptBtn.addEventListener('click', interruptSession);
+      elements.startBtn.addEventListener("click", startSession)
+      elements.startBtnEmpty?.addEventListener("click", startSession)
+      elements.endBtn.addEventListener("click", endSession)
+      elements.sendBtn.addEventListener("click", sendMessage)
+      elements.interruptBtn.addEventListener("click", interruptSession)
 
-      elements.messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
+      elements.messageInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault()
+          sendMessage()
         }
-      });
+      })
 
-      loadSkills();
+      elements.apiUrl.addEventListener("change", loadSkills)
 
-      window.addEventListener('beforeunload', () => {
+      loadSkills()
+
+      window.addEventListener("beforeunload", () => {
         if (socket) {
-          socket.disconnect();
+          socket.disconnect()
         }
-      });
+      })
     </script>
   </body>
 </html>
