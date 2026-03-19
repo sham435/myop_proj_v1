@@ -228,6 +228,20 @@ export namespace Skill {
       }
     }
 
+    // Load built-in skills from packages/myoc/src/builtin-skills
+    const builtInSkillsPath = path.join(import.meta.dir, "..", "builtin-skills")
+    if (await Filesystem.isDir(builtInSkillsPath)) {
+      const builtInMatches = await Glob.scan(SKILL_PATTERN, {
+        cwd: builtInSkillsPath,
+        absolute: true,
+        include: "file",
+        symlink: true,
+      })
+      for (const match of builtInMatches) {
+        await addSkill(match)
+      }
+    }
+
     return {
       skills,
       dirs: Array.from(dirs),
