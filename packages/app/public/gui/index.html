@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenCode Agent GUI</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg-primary: #0d1117;
+        --bg-secondary: #161b22;
+        --bg-tertiary: #21262d;
+        --text-primary: #e6edf3;
+        --text-secondary: #8b949e;
+        --accent: #58a6ff;
+        --accent-hover: #79c0ff;
+        --border: #30363d;
+        --error: #f85149;
+        --success: #3fb950;
+        --user-bg: #238636;
+        --agent-bg: #1f6feb;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .app {
+        display: flex;
+        height: 100vh;
+      }
+
+      .sidebar {
+        width: 280px;
+        background-color: var(--bg-secondary);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .sidebar-header {
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .sidebar-header h1 {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .session-controls {
+        display: flex;
+        gap: 8px;
+      }
+
+      .sidebar-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+      }
+
+      .skills-section h2 {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .skill-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .skill-item {
+        padding: 10px 12px;
+        background-color: var(--bg-tertiary);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 0.15s;
+      }
+
+      .skill-item:hover {
+        background-color: var(--border);
+      }
+
+      .skill-item.active {
+        border: 1px solid var(--accent);
+      }
+
+      .skill-item h3 {
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 4px;
+      }
+
+      .skill-item p {
+        font-size: 12px;
+        color: var(--text-secondary);
+        line-height: 1.4;
+      }
+
+      .main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .chat-header {
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .chat-header h2 {
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .session-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: var(--text-secondary);
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: var(--text-secondary);
+      }
+
+      .status-dot.connected {
+        background-color: var(--success);
+      }
+
+      .status-dot.disconnected {
+        background-color: var(--error);
+      }
+
+      .messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .message {
+        max-width: 80%;
+        padding: 12px 16px;
+        border-radius: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .message.user {
+        align-self: flex-end;
+        background-color: var(--user-bg);
+        border-bottom-right-radius: 4px;
+      }
+
+      .message.agent {
+        align-self: flex-start;
+        background-color: var(--bg-tertiary);
+        border-bottom-left-radius: 4px;
+      }
+
+      .message.system {
+        align-self: center;
+        background-color: transparent;
+        color: var(--text-secondary);
+        font-size: 13px;
+        text-align: center;
+        padding: 8px;
+      }
+
+      .message .sender {
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        opacity: 0.8;
+      }
+
+      .message pre {
+        background-color: var(--bg-primary);
+        padding: 12px;
+        border-radius: 6px;
+        overflow-x: auto;
+        margin: 8px 0;
+        font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+        font-size: 13px;
+      }
+
+      .message code {
+        background-color: var(--bg-primary);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+        font-size: 13px;
+      }
+
+      .input-area {
+        padding: 16px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 12px;
+      }
+
+      .input-wrapper {
+        flex: 1;
+        display: flex;
+        gap: 8px;
+      }
+
+      input[type="text"] {
+        flex: 1;
+        padding: 12px 16px;
+        background-color: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.15s;
+      }
+
+      input[type="text"]:focus {
+        border-color: var(--accent);
+      }
+
+      input[type="text"]:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      button {
+        padding: 12px 20px;
+        background-color: var(--accent);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.15s;
+      }
+
+      button:hover:not(:disabled) {
+        background-color: var(--accent-hover);
+      }
+
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      button.secondary {
+        background-color: var(--bg-tertiary);
+        color: var(--text-primary);
+      }
+
+      button.secondary:hover:not(:disabled) {
+        background-color: var(--border);
+      }
+
+      button.danger {
+        background-color: var(--error);
+      }
+
+      button.danger:hover:not(:disabled) {
+        background-color: #ff6b63;
+      }
+
+      .tool-call {
+        background-color: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 12px;
+        margin: 8px 0;
+        font-family: monospace;
+        font-size: 13px;
+      }
+
+      .tool-call .tool-name {
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      .loading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text-secondary);
+      }
+
+      .loading::after {
+        content: "";
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .empty-state {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+        text-align: center;
+        padding: 40px;
+      }
+
+      .empty-state h2 {
+        font-size: 20px;
+        margin-bottom: 8px;
+        color: var(--text-primary);
+      }
+
+      .empty-state p {
+        margin-bottom: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <h1>OpenCode Agent</h1>
+          <div class="session-controls">
+            <button id="startBtn">Start Session</button>
+            <button id="endBtn" class="secondary" disabled>End</button>
+          </div>
+        </div>
+        <div class="sidebar-content">
+          <div class="skills-section">
+            <h2>Available Skills</h2>
+            <div id="skillsList" class="skill-list">
+              <p class="loading">Loading skills...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="main">
+        <div class="chat-header">
+          <h2>Chat</h2>
+          <div class="session-status">
+            <span id="statusText">Disconnected</span>
+            <span id="statusDot" class="status-dot disconnected"></span>
+          </div>
+        </div>
+
+        <div id="messages" class="messages">
+          <div class="empty-state">
+            <h2>Welcome to OpenCode Agent</h2>
+            <p>Start a session to begin chatting with the AI agent.</p>
+            <button id="startBtnEmpty">Start Session</button>
+          </div>
+        </div>
+
+        <div class="input-area">
+          <div class="input-wrapper">
+            <input type="text" id="messageInput" placeholder="Type your message..." disabled />
+            <button id="sendBtn" disabled>Send</button>
+          </div>
+          <button id="interruptBtn" class="danger" disabled>Interrupt</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const WS_URL = import.meta.env?.VITE_WS_URL || 'http://localhost:3000';
+
+      let socket = null;
+      let currentSessionId = null;
+      let isConnected = false;
+
+      const elements = {
+        startBtn: document.getElementById('startBtn'),
+        startBtnEmpty: document.getElementById('startBtnEmpty'),
+        endBtn: document.getElementById('endBtn'),
+        interruptBtn: document.getElementById('interruptBtn'),
+        sendBtn: document.getElementById('sendBtn'),
+        messageInput: document.getElementById('messageInput'),
+        messages: document.getElementById('messages'),
+        skillsList: document.getElementById('skillsList'),
+        statusText: document.getElementById('statusText'),
+        statusDot: document.getElementById('statusDot'),
+      };
+
+      function updateConnectionStatus(connected) {
+        isConnected = connected;
+        elements.statusText.textContent = connected ? 'Connected' : 'Disconnected';
+        elements.statusDot.className = `status-dot ${connected ? 'connected' : 'disconnected'}`;
+        elements.startBtn.disabled = connected;
+        elements.startBtnEmpty.disabled = connected;
+        elements.endBtn.disabled = !connected;
+        elements.sendBtn.disabled = !connected || !currentSessionId;
+        elements.interruptBtn.disabled = !currentSessionId;
+        elements.messageInput.disabled = !currentSessionId;
+      }
+
+      function addMessage(content, type = 'agent', sender = null) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}`;
+
+        if (type === 'system') {
+          messageDiv.textContent = content;
+        } else {
+          if (sender) {
+            const senderDiv = document.createElement('div');
+            senderDiv.className = 'sender';
+            senderDiv.textContent = sender;
+            messageDiv.appendChild(senderDiv);
+          }
+          messageDiv.innerHTML += formatMarkdown(content);
+        }
+
+        elements.messages.appendChild(messageDiv);
+        elements.messages.scrollTop = elements.messages.scrollHeight;
+      }
+
+      function formatMarkdown(text) {
+        let html = text
+          .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+          .replace(/\n/g, '<br>');
+        return html;
+      }
+
+      function showEmptyState(show) {
+        const emptyState = elements.messages.querySelector('.empty-state');
+        if (show && !emptyState) {
+          elements.messages.innerHTML = `
+            <div class="empty-state">
+              <h2>Welcome to OpenCode Agent</h2>
+              <p>Start a session to begin chatting with the AI agent.</p>
+              <button id="startBtnEmpty2">Start Session</button>
+            </div>
+          `;
+          document.getElementById('startBtnEmpty2').addEventListener('click', startSession);
+        } else if (!show && emptyState) {
+          elements.messages.innerHTML = '';
+        }
+      }
+
+      function startSession() {
+        if (socket) {
+          socket.disconnect();
+        }
+
+        socket = io(WS_URL, {
+          path: '/agent/socket.io',
+          transports: ['websocket', 'polling'],
+        });
+
+        socket.on('connect', () => {
+          console.log('Connected to WebSocket');
+          updateConnectionStatus(true);
+          addMessage('Connecting to agent...', 'system');
+
+          socket.emit('start_session', {}, (response) => {
+            console.log('Session response:', response);
+            if (response.status === 'started') {
+              currentSessionId = response.sessionId;
+              showEmptyState(false);
+              addMessage('Session started. Type a message to begin.', 'system');
+              elements.messageInput.disabled = false;
+              elements.sendBtn.disabled = false;
+              elements.messageInput.focus();
+            } else {
+              addMessage('Failed to start session: ' + (response.message || 'Unknown error'), 'system');
+            }
+          });
+        });
+
+        socket.on('output', (data) => {
+          if (data.type === 'stdout') {
+            addMessage(data.data, 'agent');
+          } else {
+            addMessage('[Error] ' + data.data, 'system');
+          }
+        });
+
+        socket.on('session_ended', (data) => {
+          addMessage(`Session ended with code: ${data.exitCode}`, 'system');
+          currentSessionId = null;
+          updateConnectionStatus(false);
+        });
+
+        socket.on('error', (data) => {
+          addMessage('Error: ' + data.error, 'system');
+        });
+
+        socket.on('disconnect', () => {
+          console.log('Disconnected from WebSocket');
+          updateConnectionStatus(false);
+          if (currentSessionId) {
+            addMessage('Disconnected from server', 'system');
+          }
+        });
+      }
+
+      function endSession() {
+        if (socket && currentSessionId) {
+          socket.emit('end_session', { sessionId: currentSessionId }, (response) => {
+            console.log('End session response:', response);
+          });
+          currentSessionId = null;
+        }
+      }
+
+      function sendMessage() {
+        const message = elements.messageInput.value.trim();
+        if (!message || !socket || !currentSessionId) return;
+
+        addMessage(message, 'user', 'You');
+        elements.messageInput.value = '';
+
+        socket.emit('send_message', { sessionId: currentSessionId, message }, (response) => {
+          if (response.status !== 'sent') {
+            addMessage('Failed to send message: ' + (response.message || 'Unknown error'), 'system');
+          }
+        });
+      }
+
+      function interruptSession() {
+        if (socket && currentSessionId) {
+          socket.emit('interrupt', { sessionId: currentSessionId }, (response) => {
+            console.log('Interrupt response:', response);
+          });
+        }
+      }
+
+      function loadSkills() {
+        if (socket) {
+          socket.emit('get_skills', {}, (response) => {
+            if (response.status === 'success' && response.skills) {
+              renderSkills(response.skills);
+            }
+          });
+        } else {
+          fetch(`${WS_URL}/api/skills`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.skills) {
+                renderSkills(data.skills);
+              } else {
+                renderSkills([]);
+              }
+            })
+            .catch(() => {
+              renderSkills([]);
+            });
+        }
+      }
+
+      function renderSkills(skills) {
+        if (!skills || skills.length === 0) {
+          elements.skillsList.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px;">No skills available</p>';
+          return;
+        }
+
+        elements.skillsList.innerHTML = skills.map(skill => `
+          <div class="skill-item" data-skill="${skill.name}">
+            <h3>/${skill.name}</h3>
+            <p>${skill.description || 'No description'}</p>
+          </div>
+        `).join('');
+
+        elements.skillsList.querySelectorAll('.skill-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const skillName = item.dataset.skill;
+            elements.messageInput.value = `/${skillName}`;
+            elements.messageInput.focus();
+          });
+        });
+      }
+
+      elements.startBtn.addEventListener('click', startSession);
+      elements.startBtnEmpty?.addEventListener('click', startSession);
+      elements.endBtn.addEventListener('click', endSession);
+      elements.sendBtn.addEventListener('click', sendMessage);
+      elements.interruptBtn.addEventListener('click', interruptSession);
+
+      elements.messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      loadSkills();
+
+      window.addEventListener('beforeunload', () => {
+        if (socket) {
+          socket.disconnect();
+        }
+      });
+    </script>
+  </body>
+</html>
